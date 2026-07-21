@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: self-hosted       # ← במקום ubuntu-latest
@@ -16,4 +19,23 @@ jobs:
           echo "Running on my own server!"
           hostname
           whoami
+      - name: Write runner heartbeat
+        run: |
+          mkdir -p dashboard
+          cat > dashboard/runner-heartbeat.json <<EOF
+          {
+            "hostname": "$(hostname)",
+            "run_number": "$GITHUB_RUN_NUMBER",
+            "run_id": "$GITHUB_RUN_ID",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "hue": $(( RANDOM % 360 ))
+          }
+          EOF
+      - name: Push heartbeat
+        run: |
+          git config user.name "self-hosted-runner"
+          git config user.email "runner@local"
+          git add dashboard/runner-heartbeat.json
+          git diff --cached --quiet || git commit -m "Runner heartbeat from $(hostname) [skip ci]"
+          git push
 

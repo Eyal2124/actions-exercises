@@ -148,6 +148,19 @@
   }
   .panel h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; }
   .panel .sub { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+
+  .heartbeat-panel { display: flex; align-items: center; gap: 16px; padding: 16px 18px; }
+  .heartbeat-swatch {
+    width: 46px; height: 46px; border-radius: 12px; flex: none;
+    background: var(--status-muted); border: 1px solid var(--border);
+    transition: background 0.4s ease;
+  }
+  .heartbeat-body h2 { margin: 0 0 2px; }
+  .heartbeat-body .sub { margin: 0; font-variant-numeric: tabular-nums; }
+  .heartbeat-body .sub code {
+    background: var(--page-plane); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 6px; font-size: 12px; color: var(--text-primary);
+  }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
   .legend-swatch { width: 9px; height: 9px; border-radius: 2px; }
@@ -208,6 +221,14 @@
   </header>
 
   <div class="banner" id="bridge-banner"></div>
+
+  <div class="panel heartbeat-panel" id="heartbeat-panel">
+    <div class="heartbeat-swatch" id="heartbeat-swatch"></div>
+    <div class="heartbeat-body">
+      <h2>📡 Live from the machine</h2>
+      <p class="sub" id="heartbeat-text">Waiting for the runner to check in…</p>
+    </div>
+  </div>
 
   <div class="runners" id="runners"></div>
 
@@ -310,8 +331,26 @@ async function init() {
 
   pollRuns();
   pollRunners();
+  pollHeartbeat();
   setInterval(pollRuns, state.bridgeUp && state.tokenConfigured ? 6000 : 45000);
   setInterval(pollRunners, 5000);
+  setInterval(pollHeartbeat, 8000);
+}
+
+async function pollHeartbeat() {
+  try {
+    const url = `https://raw.githubusercontent.com/${state.repo}/main/dashboard/runner-heartbeat.json?_=${Date.now()}`;
+    const data = await fetchJSON(url);
+    renderHeartbeat(data);
+  } catch {
+    // file doesn't exist yet (no run has pushed one) — leave the waiting message
+  }
+}
+
+function renderHeartbeat(hb) {
+  $('heartbeat-swatch').style.background = `hsl(${hb.hue}, 65%, 55%)`;
+  $('heartbeat-text').innerHTML =
+    `Written by <code>${escapeHtml(hb.hostname)}</code> on run #${escapeHtml(hb.run_number)} · ${timeAgo(hb.timestamp)}`;
 }
 
 function showBanner(html) {
