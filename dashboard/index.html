@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runner Live Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --muted:          #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-blue:    #2a78d6;
+    --status-good:      #0ca30c;
+    --status-warning:   #fab219;
+    --status-serious:   #ec835a;
+    --status-critical:  #d03b3b;
+    --status-muted:     #898781;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted:          #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-blue:    #3987e5;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { min-height: 100vh; overflow-x: hidden; }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+  }
+  .title-block h1 {
+    font-size: 22px; font-weight: 650; margin: 0 0 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .title-block .repo {
+    color: var(--text-secondary); font-size: 14px; margin: 0;
+  }
+  .repo a { color: inherit; }
+
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 650; letter-spacing: .04em;
+    padding: 5px 10px 5px 8px; border-radius: 999px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--status-muted); flex: none;
+  }
+  .dot.on { background: var(--status-good); box-shadow: 0 0 0 0 rgba(12,163,12,.5); animation: pulse 1.8s infinite; }
+  .dot.busy { background: var(--status-warning); box-shadow: 0 0 0 0 rgba(250,178,25,.5); animation: pulse 1.2s infinite; }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(12,163,12,.45); }
+    70%  { box-shadow: 0 0 0 8px rgba(12,163,12,0); }
+    100% { box-shadow: 0 0 0 0 rgba(12,163,12,0); }
+  }
+
+  .actions { display: flex; align-items: center; gap: 10px; }
+  button.trigger {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--series-blue); color: #fff; border: none;
+    font-size: 13px; font-weight: 600; padding: 9px 14px; border-radius: 8px;
+    cursor: pointer; transition: opacity .15s ease, transform .05s ease;
+  }
+  button.trigger:hover { opacity: .9; }
+  button.trigger:active { transform: scale(.97); }
+  button.trigger:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ---------- banner ---------- */
+  .banner {
+    display: none;
+    font-size: 13px; color: var(--text-secondary);
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .banner code {
+    background: var(--page-plane); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 6px; font-size: 12px;
+  }
+  .banner.show { display: block; }
+
+  /* ---------- runner cards ---------- */
+  .runners { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .runner-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .runner-card.empty { border-style: dashed; color: var(--muted); font-size: 13px; }
+  .runner-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .runner-name { font-weight: 650; font-size: 14px; }
+  .status-pill {
+    font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .status-pill.online  { color: var(--status-good); background: color-mix(in srgb, var(--status-good) 14%, transparent); }
+  .status-pill.offline { color: var(--status-critical); background: color-mix(in srgb, var(--status-critical) 14%, transparent); }
+  .status-pill.busy    { color: var(--status-warning); background: color-mix(in srgb, var(--status-warning) 18%, transparent); }
+  .runner-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .labels { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .label-chip {
+    font-size: 11px; color: var(--text-secondary); background: var(--page-plane);
+    border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px;
+  }
+
+  /* ---------- stat tiles ---------- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+  .stat-value.good { color: var(--status-good); }
+  .stat-value.critical { color: var(--status-critical); }
+
+  /* ---------- chart ---------- */
+  .panel {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 18px 14px; margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; }
+  .panel .sub { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend-swatch { width: 9px; height: 9px; border-radius: 2px; }
+
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; position: relative; }
+  .bar {
+    flex: 1; min-width: 6px; max-width: 24px; border-radius: 4px 4px 0 0;
+    background: var(--status-muted); position: relative; cursor: pointer;
+    transition: opacity .15s ease;
+  }
+  .bar:hover { opacity: .8; }
+  .bar .tip {
+    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: var(--text-primary); color: var(--page-plane); font-size: 11px;
+    padding: 6px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity .1s ease; z-index: 5;
+  }
+  .bar:hover .tip { opacity: 1; }
+  .chart-empty { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; width: 100%; }
+
+  /* ---------- feed ---------- */
+  .feed-row {
+    display: grid; grid-template-columns: 20px 1fr auto auto; align-items: center;
+    gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--gridline);
+    font-size: 13px; animation: fadein .3s ease;
+  }
+  .feed-row:last-child { border-bottom: none; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .feed-icon { font-size: 14px; text-align: center; }
+  .feed-main .msg { color: var(--text-primary); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 460px; }
+  .feed-main .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .feed-dur { color: var(--text-secondary); font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+  .feed-link { color: var(--muted); text-decoration: none; font-size: 13px; }
+  .feed-link:hover { color: var(--series-blue); }
+  .feed-empty { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  .icon-good { color: var(--status-good); }
+  .icon-critical { color: var(--status-critical); }
+  .icon-warning { color: var(--status-warning); }
+  .icon-muted { color: var(--status-muted); }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 30px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1>🖥️ Self-Hosted Runner — Live Dashboard</h1>
+      <p class="repo"><a id="repo-link" href="#" target="_blank" rel="noopener"></a></p>
+    </div>
+    <div class="actions">
+      <span class="live-badge"><span class="dot" id="live-dot"></span><span id="live-text">CONNECTING</span></span>
+      <button class="trigger" id="trigger-btn" disabled>▶ Trigger run</button>
+    </div>
+  </header>
+
+  <div class="banner" id="bridge-banner"></div>
+
+  <div class="runners" id="runners"></div>
+
+  <div class="stats">
+    <div class="stat-tile"><div class="stat-label">Runs (last 20)</div><div class="stat-value" id="stat-total">–</div></div>
+    <div class="stat-tile"><div class="stat-label">Success rate</div><div class="stat-value good" id="stat-success">–</div></div>
+    <div class="stat-tile"><div class="stat-label">Avg duration</div><div class="stat-value" id="stat-duration">–</div></div>
+    <div class="stat-tile"><div class="stat-label">Running now</div><div class="stat-value" id="stat-active">–</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Run duration timeline</h2>
+    <p class="sub">Most recent runs, oldest → newest</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--status-good)"></span>Success</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--status-critical)"></span>Failed</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--status-warning)"></span>Running</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--status-muted)"></span>Queued / other</span>
+    </div>
+    <div class="chart" id="chart"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Recent runs</h2>
+    <p class="sub">Auto-refreshing</p>
+    <div id="feed"></div>
+  </div>
+
+  <footer>actions-exercises · dashboard/server.py holds the token, never the browser</footer>
+</div>
+
+<script>
+const state = { repo: null, workflow: null, bridgeUp: false, tokenConfigured: false, runs: [], runners: [] };
+
+const $ = (id) => document.getElementById(id);
+
+function fmtDuration(seconds) {
+  if (seconds == null || isNaN(seconds)) return '–';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function statusOf(run) {
+  if (run.status !== 'completed') {
+    return run.status === 'in_progress'
+      ? { key: 'warning', icon: '●', label: 'Running' }
+      : { key: 'muted', icon: '○', label: 'Queued' };
+  }
+  if (run.conclusion === 'success') return { key: 'good', icon: '✓', label: 'Success' };
+  if (run.conclusion === 'failure') return { key: 'critical', icon: '✕', label: 'Failed' };
+  return { key: 'muted', icon: '–', label: run.conclusion || 'Other' };
+}
+function durationOf(run) {
+  const start = new Date(run.run_started_at).getTime();
+  const end = run.status === 'completed' ? new Date(run.updated_at).getTime() : Date.now();
+  return Math.max(0, (end - start) / 1000);
+}
+
+async function fetchJSON(url, opts) {
+  const res = await fetch(url, { cache: 'no-store', ...opts });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function init() {
+  try {
+    const status = await fetchJSON('/api/status');
+    state.repo = status.repo;
+    state.workflow = status.workflow;
+    state.tokenConfigured = status.tokenConfigured;
+    state.bridgeUp = true;
+  } catch {
+    state.repo = 'Eyal2124/actions-exercises';
+    state.bridgeUp = false;
+  }
+
+  $('repo-link').textContent = state.repo;
+  $('repo-link').href = `https://github.com/${state.repo}`;
+
+  if (!state.bridgeUp) {
+    showBanner(`Local bridge not running — live runner status and the trigger button are off.
+      Run <code>python3 server.py</code> in the <code>dashboard/</code> folder (with <code>GITHUB_TOKEN</code> set) before class to enable them.
+      Run history below still works via the public GitHub API.`);
+  } else if (!state.tokenConfigured) {
+    showBanner(`Bridge is running but <code>GITHUB_TOKEN</code> isn't set — runner status and the trigger button are off.
+      Export a token and restart <code>server.py</code> to enable them.`);
+  } else {
+    $('trigger-btn').disabled = false;
+  }
+
+  pollRuns();
+  pollRunners();
+  setInterval(pollRuns, state.bridgeUp && state.tokenConfigured ? 6000 : 45000);
+  setInterval(pollRunners, 5000);
+}
+
+function showBanner(html) {
+  const b = $('bridge-banner');
+  b.innerHTML = html;
+  b.classList.add('show');
+}
+
+async function pollRuns() {
+  try {
+    let data;
+    if (state.bridgeUp && state.tokenConfigured) {
+      data = await fetchJSON('/api/runs');
+      if (data.error) throw new Error(data.error);
+    } else {
+      data = await fetchJSON(`https://api.github.com/repos/${state.repo}/actions/runs?per_page=20`);
+    }
+    state.runs = data.workflow_runs || [];
+    renderRuns();
+    renderLiveBadge();
+  } catch (e) {
+    // stay on last known data; a transient rate-limit or network blip shouldn't wipe the UI
+  }
+}
+
+async function pollRunners() {
+  if (!state.bridgeUp || !state.tokenConfigured) { renderRunners(); return; }
+  try {
+    const data = await fetchJSON('/api/runners');
+    state.runners = data.error ? [] : (data.runners || []);
+  } catch {
+    state.runners = [];
+  }
+  renderRunners();
+  renderLiveBadge();
+}
+
+function renderLiveBadge() {
+  const anyBusy = state.runners.some(r => r.busy) || state.runs.some(r => r.status === 'in_progress');
+  const anyOnline = state.runners.some(r => r.status === 'online');
+  const dot = $('live-dot'), text = $('live-text');
+  dot.className = 'dot' + (anyBusy ? ' busy' : anyOnline ? ' on' : '');
+  text.textContent = anyBusy ? 'RUN IN PROGRESS' : anyOnline ? 'RUNNER ONLINE' : (state.bridgeUp ? 'IDLE' : 'LIVE (public feed)');
+}
+
+function renderRunners() {
+  const el = $('runners');
+  if (!state.bridgeUp || !state.tokenConfigured) {
+    el.innerHTML = `<div class="runner-card empty">Runner status needs the local bridge + GITHUB_TOKEN. See the banner above.</div>`;
+    return;
+  }
+  if (!state.runners.length) {
+    el.innerHTML = `<div class="runner-card empty">No self-hosted runners registered on this repo.</div>`;
+    return;
+  }
+  el.innerHTML = state.runners.map(r => `
+    <div class="runner-card">
+      <div class="runner-head">
+        <span class="runner-name">${escapeHtml(r.name)}</span>
+        <span class="status-pill ${r.status === 'online' ? 'online' : 'offline'}">${r.status === 'online' ? 'Online' : 'Offline'}</span>
+      </div>
+      <div class="runner-meta">
+        ${r.os ? escapeHtml(r.os) + ' · ' : ''}${r.busy ? '<span class="status-pill busy">Busy</span>' : 'Idle'}
+      </div>
+      <div class="labels">${(r.labels || []).map(l => `<span class="label-chip">${escapeHtml(l.name)}</span>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
+function renderRuns() {
+  renderStats();
+  renderChart();
+  renderFeed();
+}
+
+function renderStats() {
+  const runs = state.runs;
+  $('stat-total').textContent = runs.length || '0';
+  const completed = runs.filter(r => r.status === 'completed');
+  const successes = completed.filter(r => r.conclusion === 'success');
+  $('stat-success').textContent = completed.length ? `${Math.round(successes.length / completed.length * 100)}%` : '–';
+  const durations = completed.map(durationOf);
+  const avg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+  $('stat-duration').textContent = fmtDuration(avg);
+  $('stat-active').textContent = runs.filter(r => r.status === 'in_progress' || r.status === 'queued').length;
+}
+
+function renderChart() {
+  const el = $('chart');
+  const runs = [...state.runs].reverse();
+  if (!runs.length) { el.innerHTML = `<div class="chart-empty">No runs yet — trigger one to see it appear here.</div>`; return; }
+  const durations = runs.map(durationOf);
+  const max = Math.max(...durations, 1);
+  el.innerHTML = runs.map((r, i) => {
+    const s = statusOf(r);
+    const h = Math.max(4, Math.round(durations[i] / max * 100));
+    return `<div class="bar" style="height:${h}%; background:var(--status-${s.key})">
+      <div class="tip">#${r.run_number} · ${s.label} · ${fmtDuration(durations[i])}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderFeed() {
+  const el = $('feed');
+  if (!state.runs.length) { el.innerHTML = `<div class="feed-empty">No runs found yet.</div>`; return; }
+  el.innerHTML = state.runs.slice(0, 12).map(r => {
+    const s = statusOf(r);
+    const msg = r.display_title || r.head_commit?.message || r.name || 'Run';
+    return `
+    <div class="feed-row">
+      <div class="feed-icon icon-${s.key}">${s.icon}</div>
+      <div class="feed-main">
+        <div class="msg">${escapeHtml(msg)}</div>
+        <div class="meta">#${r.run_number} · ${escapeHtml(r.head_branch)} · ${escapeHtml(r.actor?.login || 'unknown')} · ${timeAgo(r.run_started_at)}</div>
+      </div>
+      <div class="feed-dur">${fmtDuration(durationOf(r))}</div>
+      <a class="feed-link" href="${r.html_url}" target="_blank" rel="noopener">↗</a>
+    </div>`;
+  }).join('');
+}
+
+$('trigger-btn').addEventListener('click', async () => {
+  const btn = $('trigger-btn');
+  btn.disabled = true;
+  btn.textContent = 'Triggering…';
+  try {
+    const res = await fetchJSON('/api/dispatch', { method: 'POST' });
+    if (res.error) throw new Error(res.error);
+    btn.textContent = '✓ Triggered';
+    setTimeout(pollRuns, 2000);
+  } catch (e) {
+    btn.textContent = 'Failed — check bridge';
+  } finally {
+    setTimeout(() => { btn.disabled = false; btn.textContent = '▶ Trigger run'; }, 4000);
+  }
+});
+
+init();
+</script>
+</body>
+</html>
