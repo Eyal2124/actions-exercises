@@ -7,15 +7,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  hello:
-    runs-on: ubuntu-latest
+  test:
+    runs-on: self-hosted       # ← במקום ubuntu-latest
     steps:
-      - name: Print hello message
-        run: echo "Hello from GitHub Actions!"
-
-      - name: Print current date and time
-        run: date
-
-      - name: Print branch name
-        run: 'echo "Branch: ${{ github.ref_name }}"'
+      - uses: actions/checkout@v4
+      - name: Hello from my VM
+        run: |
+          echo "Running on my own server!"
+          hostname
+          whoami
 
